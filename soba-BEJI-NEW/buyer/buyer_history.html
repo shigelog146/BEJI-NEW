@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <!-- 文字コード設定 -->
+    <meta charset="UTF-8">
+
+    <!-- スマホ表示最適化 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- ページタイトル -->
+    <title>購入履歴（事業者用）</title>
+
+    <!-- =========================
+   PWA設定
+========================= -->
+
+    <link rel="manifest" href="manifest.json">
+
+    <link rel="apple-touch-icon" href="icon/icon-192.png">
+
+    <meta name="theme-color" content="#007700">
+
+    <style>
+        /* =============================
+       ページ全体の基本デザイン
+    ============================== */
+        body {
+            font-family: sans-serif;
+            /* フォント指定 */
+            font-size: 20px;
+            /* 基本文字サイズ */
+            padding: 14px;
+            /* 内側余白 */
+            background: #e1dbdb;
+            /* 背景色 */
+        }
+
+        /* 見出しサイズ */
+        h1 {
+            font-size: 24px;
+        }
+
+        /* 履歴リスト全体の余白 */
+        #historyList {
+            margin-top: 16px;
+        }
+
+        /* =============================
+       各購入履歴カードのデザイン
+    ============================== */
+        .historyCard {
+            display: flex;
+            /* 横並びレイアウト */
+            gap: 14px;
+            /* 要素間の間隔 */
+            padding: 14px;
+            /* 内側余白 */
+            margin-bottom: 14px;
+            /* 下余白 */
+            background: #fff;
+            /* 背景色 */
+            border-radius: 10px;
+            /* 角丸 */
+            font-size: 18px;
+            /* カード内文字サイズ */
+            line-height: 1.6;
+            /* 行間 */
+        }
+
+        /* 野菜画像 */
+        .history-photo {
+            width: 90px;
+            height: 90px;
+            object-fit: cover;
+            /* 画像トリミング */
+            border-radius: 8px;
+        }
+
+        /* =============================
+       小さいスマホ用レイアウト調整
+    ============================== */
+        @media (max-width: 480px) {
+
+            body {
+                font-size: 22px;
+                /* 全体フォント拡大 */
+            }
+
+            h1 {
+                font-size: 28px;
+                /* タイトル拡大 */
+            }
+
+            .historyCard {
+                flex-direction: column;
+                /* 縦並びに変更 */
+                font-size: 20px;
+                /* カード文字拡大 */
+            }
+
+            .history-photo {
+                width: 100%;
+                /* 横幅いっぱい */
+                height: 200px;
+                /* 高さ固定 */
+            }
+
+            button {
+                font-size: 20px;
+                padding: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- =============================
+       購入画面に戻るボタン
+  ============================== -->
+    <button id="backBtn"
+        style="font-size: 20px; padding:10px 20px; background:#007700; color:#fff; border:none; border-radius:6px; cursor:pointer; margin-bottom:16px;">
+        購入画面に戻る
+    </button>
+
+    <!-- 購入履歴表示エリア -->
+    <div id="historyList"></div>
+
+    <!-- =============================
+       JavaScript（Supabase連携）
+  ============================== -->
+    <script type="module">
+
+        /* Supabaseライブラリ読み込み */
+        import { createClient }
+            from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+        /* Supabase接続設定 */
+        const supabase = createClient(
+            "https://zyvpzobykvuscxuhsrad.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5dnB6b2J5a3Z1c2N4dWhzcmFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTE0NTAsImV4cCI6MjA4NTM2NzQ1MH0.Z2cKv3VSlk3iibQl7ldwcff9WF5cBHTZkcrdvxA2Bbk"
+        );
+
+        /* 現在ログイン中の購入者ID */
+        let currentBuyerId = null;
+
+        /* =============================
+           ページ読み込み時の初期処理
+        ============================== */
+        document.addEventListener("DOMContentLoaded", async () => {
+
+            /* ログインユーザー取得 */
+            const { data: { user } } = await supabase.auth.getUser();
+
+            /* 未ログインなら購入画面へ戻す */
+            if (!user) {
+                alert("ログインしてください");
+                location.href = "buyer.html";
+                return;
+            }
+
+            /* ログインユーザーID保存 */
+            currentBuyerId = user.id;
+
+            /* 戻るボタンのクリック処理 */
+            document.getElementById("backBtn").onclick =
+                () => location.href = "buyer.html";
+
+            /* 購入履歴読み込み */
+            loadHistory();
+
+            window.openMap = function (lat, lng) {
+                if (!lat || !lng) {
+                    alert("位置情報が登録されていません");
+                    return;
+                }
+
+                const url = `https://www.google.com/maps?q=${lat},${lng}`;
+                window.open(url, "_blank");
+            };
+        });
+
+        /* =============================
+           購入済処理
+        ============================== */
+        window.markReceived = async function (id) {
+
+            const { error } = await supabase
+                .from("purchases")
+                .update({ is_received: true })
+                .eq("id", id);
+
+            if (error) {
+                alert("更新失敗");
+                console.log(error);
+                return;
+            }
+
+            alert("受取完了にしました");
+            loadHistory(); // 再読み込み
+        };
+
+        /* =============================
+           キャンセル処理（在庫復活版）
+        ============================= */
+        window.cancelPurchase = async function (purchaseId, vegetableId) {
+
+            const confirmCancel = confirm("この購入をキャンセルしますか？");
+            if (!confirmCancel) return;
+
+            // ============================
+            // ① purchases を完全削除（履歴から消す）
+            // ============================
+            const { error: purchaseError } = await supabase
+                .from("purchases")
+                .delete()
+                .eq("id", purchaseId);
+
+            if (purchaseError) {
+                alert("キャンセル失敗（購入履歴削除）");
+                console.log(purchaseError);
+                return;
+            }
+
+            // ============================
+            // ② vegetables を再販売可能に
+            // ============================
+            const { error: vegError } = await supabase
+                .from("vegetables")
+                .update({ is_available: true })
+                .eq("id", vegetableId);
+
+            if (vegError) {
+                alert("在庫復活失敗");
+                console.log(vegError);
+                return;
+            }
+
+            alert("キャンセルして再販売可能にしました");
+
+            loadHistory(); // 再読み込み
+        };
+
+
+        /* =============================
+           購入履歴取得＆表示処理
+        ============================== */
+        async function loadHistory() {
+
+            /* purchasesテーブルから履歴取得 */
+            const { data, error } = await supabase
+                .from("purchases")
+                .select(`
+          id,
+          quantity,
+          purchased_at,
+          is_received,
+          vegetables (
+            id,
+            vegetable_name,
+            farm_name,
+            unit,
+            price,
+            image_url,
+            latitude,
+            longitude
+          )
+        `)
+                .eq("buyer_id", currentBuyerId)
+                .order("purchased_at", { ascending: false });
+
+            if (error) {
+                console.error("loadHistoryエラー", error);
+                alert("履歴取得に失敗しました（詳細はコンソール）");
+                return;
+            }
+
+            /* 表示エリア取得 */
+            const historyList = document.getElementById("historyList");
+            historyList.innerHTML = "";
+
+            /* データが空の場合 */
+            if (!data || data.length === 0) {
+                historyList.textContent = "購入履歴はありません。";
+                return;
+            }
+
+            /* 1件ずつカード生成 */
+            data.forEach(p => {
+
+                const div = document.createElement("div");
+                div.className = "historyCard";
+
+                /* カード内HTML作成 */
+                div.innerHTML = `
+          <img src="${p.vegetables.image_url}" class="history-photo">
+          <div><strong>購入日時：</strong>${new Date(p.purchased_at).toLocaleString()}</div>
+          <div><strong>野菜名：</strong>${p.vegetables.vegetable_name}</div>
+          <div><strong>農家：</strong>${p.vegetables.farm_name}</div>
+          <div><strong>数量：</strong>${p.quantity} ${p.vegetables.unit}</div>
+          <div><strong>単価：</strong>${p.vegetables.price}円</div>
+          <div><strong>合計：</strong>${p.quantity * p.vegetables.price}円</div>
+          
+${p.is_received
+                        ? `<div style="display:flex;gap:10px;align-items:center;">
+       <div style="color:green;font-weight:bold;">受取済</div>
+     </div>`
+                        : `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+       <button onclick="markReceived('${p.id}')"
+               style="background:#007700;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">
+         購入済にする
+       </button>
+       <button onclick="cancelPurchase('${p.id}', '${p.vegetables.id}')"
+               style="background:#cc0000;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">
+         キャンセル
+       </button>
+     </div>`
+                    }
+
+          <button onclick="openMap(${p.vegetables.latitude}, ${p.vegetables.longitude})">
+             畑の地図を見る
+          </button>
+        `;
+
+                historyList.appendChild(div);
+            });
+        }
+
+        // ========================================
+        // Service Worker登録
+        // ========================================
+        if ("serviceWorker" in navigator) {
+
+            window.addEventListener("load", () => {
+
+                navigator.serviceWorker
+                    .register("./service-worker.js")
+
+                    .then(() => {
+
+                        console.log("Service Worker 登録成功");
+
+                    })
+
+                    .catch(err => {
+
+                        console.log("Service Worker 登録失敗", err);
+
+                    });
+
+            });
+
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>野菜登録（農家用）</title>
+
+  <!-- =============================
+       CSS（デザイン部分）
+       ============================= -->
+  <style>
+    body {
+      font-size: 22px;
+      font-family: sans-serif;
+      padding: 18px;
+      background-color: #e4e3e3;
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-top: 16px;
+      font-weight: bold;
+      font-size: 22px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      font-size: 22px;
+      padding: 14px;
+      margin-top: 8px;
+      box-sizing: border-box;
+    }
+
+    button {
+      max-width: 6cm;
+      font-size: 22px;
+      padding: 10px;
+      margin: 24px 0;
+      background: rgb(26, 87, 26);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #488e48;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .locked {
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    #map {
+      width: 100%;
+      max-width: 500px;
+      height: 400px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+
+    @media (max-width: 480px) {
+      body {
+        font-size: 24px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      input,
+      textarea {
+        font-size: 24px;
+      }
+
+      button {
+        font-size: 24px;
+      }
+    }
+  </style>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- PWA設定 -->
+  <link rel="manifest" href="manifest.json">
+
+  <meta name="theme-color" content="#1a571a">
+
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <!-- PWA設定 -->
+  <link rel="manifest" href="manifest.json">
+
+  <meta name="theme-color" content="#1a571a">
+
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+</head>
+
+<body>
+
+  <!-- =============================
+       ログインパネル
+       ============================= -->
+  <div id="loginPanel">
+    <input id="email" type="email" placeholder="メール">
+    <div style="position:relative; max-width:500px;">
+
+      <input id="password" type="password" placeholder="パスワード" style="padding-right:60px;">
+
+      <button type="button" id="togglePassword" style="
+      position:absolute;
+      right:10px;
+      top:50%;
+      transform:translateY(-50%);
+      background:none;
+      border:none;
+      cursor:pointer;
+      font-size:18px;
+      color:#555;
+      margin:0;
+      padding:0;
+    ">
+        👁
+      </button>
+
+    </div>
+
+    <!-- onclick廃止。IDで管理 -->
+    <button id="loginBtn">ログイン</button>
+    <button id="signupBtn">登録</button>
+    <button id="logoutBtn" class="hidden">ログアウト</button>
+
+    <span id="loginStatus"></span>
+  </div>
+
+  <!-- =============================
+       アプリ本体
+       ============================= -->
+  <div id="appArea" class="locked">
+
+    <div id="farmer-actions" style="display:none;">
+      <button onclick="location.href='list.html'">
+        販売一覧を見る
+      </button>
+    </div>
+
+    <h1>本日の野菜を登録</h1>
+
+    <label>畑の名前</label>
+    <input id="farm_name" list="farm_list" placeholder="畑を選択または入力">
+
+    <datalist id="farm_list">
+      <option value="畑1">
+      <option value="畑2">
+      <option value="畑3">
+    </datalist>
+
+    <label>畑の位置</label>
+    <button id="locationBtn">今いる場所</button>
+
+    <div>
+      <label>緯度</label>
+      <input id="lat" readonly>
+
+      <label>経度</label>
+      <input id="lng" readonly>
+    </div>
+
+    <div id="map"></div>
+
+    <label>野菜の名前</label>
+    <input id="vegetable_name">
+
+    <label>販売単位</label>
+    <input id="unit">
+
+    <label>価格</label>
+    <input id="price" type="number">
+
+    <label>コメント</label>
+    <textarea id="comment"></textarea>
+
+    <input type="file" id="photoInput">
+
+    <div id="photoPreview" style="
+       margin-top:16px;
+       width:100%;
+       max-width:320px;
+       height:240px;
+       border:2px dashed #ccc;
+       border-radius:8px;
+       display:flex;
+       align-items:center;
+       justify-content:center;
+       background:#fafafa;
+     ">
+      <p>ここに写真が表示されます</p>
+    </div>
+
+    <div id="register-area" style="display:none;">
+      <button id="registerBtn">登録する</button>
+    </div>
+
+  </div>
+
+  <!-- =============================
+       JavaScript（安定版）
+       ============================= -->
+  <script type="module">
+
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+    /* ===== Supabase 初期化 ===== */
+    const supabase = createClient(
+      "https://zyvpzobykvuscxuhsrad.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5dnB6b2J5a3Z1c2N4dWhzcmFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTE0NTAsImV4cCI6MjA4NTM2NzQ1MH0.Z2cKv3VSlk3iibQl7ldwcff9WF5cBHTZkcrdvxA2Bbk"
+    );
+
+    let currentUser = null;
+
+    /* ===== DOM取得（安全） ===== */
+    const appArea = document.getElementById("appArea");
+    const loginBtn = document.getElementById("loginBtn");
+    const signupBtn = document.getElementById("signupBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const loginStatus = document.getElementById("loginStatus");
+    const locationBtn = document.getElementById("locationBtn");
+    const registerBtn = document.getElementById("registerBtn");
+
+    /* =============================
+       パスワード表示切替
+    ============================= */
+    const passwordInput =
+      document.getElementById("password");
+
+    const togglePassword =
+      document.getElementById("togglePassword");
+
+    togglePassword.addEventListener("click", () => {
+
+      // password ⇔ text 切替
+      if (passwordInput.type === "password") {
+
+        passwordInput.type = "text";
+        togglePassword.textContent = "🙈";
+
+      } else {
+
+        passwordInput.type = "password";
+        togglePassword.textContent = "👁";
+
+      }
+
+    });
+
+    /* =============================
+       セッション確認（ページ読み込み時）
+       ============================= */
+    const { data: { session } } =
+      await supabase.auth.getSession();
+
+    if (session) enableApp(session.user);
+
+    /* =============================
+       ログイン
+       ============================= */
+    loginBtn.addEventListener("click", async () => {
+
+      const emailValue = document.getElementById("email").value;
+      const passwordValue = document.getElementById("password").value;
+
+      const { data, error } =
+        await supabase.auth.signInWithPassword({
+          email: emailValue,
+          password: passwordValue
+        });
+
+      if (error) {
+        loginStatus.textContent = error.message;
+        return;
+      }
+
+      enableApp(data.user);
+    });
+
+    /* =============================
+       新規登録
+       ============================= */
+    signupBtn.addEventListener("click", async () => {
+
+      const emailValue = document.getElementById("email").value;
+      const passwordValue = document.getElementById("password").value;
+
+      const { data, error } =
+        await supabase.auth.signUp({
+          email: emailValue,
+          password: passwordValue
+        });
+
+      if (error) {
+        loginStatus.textContent = error.message;
+        return;
+      }
+
+      loginStatus.textContent =
+        "確認メールを送信しました。メールを確認してください。";
+    });
+
+    /* =============================
+       ログアウト
+       ============================= */
+    logoutBtn.addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      currentUser = null;
+      appArea.classList.add("locked");
+      logoutBtn.classList.add("hidden");
+      loginStatus.textContent = "";
+      document.getElementById("userEmail").textContent = "";
+    });
+
+    /* =============================
+       ログイン成功時処理
+       ============================= */
+    async function enableApp(user) {
+
+      currentUser = user;
+
+      logoutBtn.classList.remove("hidden");
+      loginStatus.textContent = `ログイン中：${user.email}`;
+
+      // profiles確認
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      // 初回ログイン → profiles作成
+      if (error || !profile) {
+
+        const { error: insertError } = await supabase
+          .from("profiles")
+          .insert([
+            {
+              id: user.id,
+              role: "farmer",
+              approved: false
+            }
+          ]);
+
+        if (insertError) {
+          console.error("profiles作成失敗:", insertError);
+          alert("プロフィール作成エラー");
+          return;
+        }
+
+        alert("管理者の承認後に利用可能です");
+        appArea.classList.add("locked");
+        return;
+      }
+
+      // 🔴 roleチェック
+      if (profile.role !== "farmer") {
+        alert("このアカウントは農家用ではありません");
+        await supabase.auth.signOut();
+        appArea.classList.add("locked");
+        return;
+      }
+
+      // 承認チェック
+      if (profile.role !== "farmer") {
+        alert("農家アカウントのみ登録できます");
+        return;
+      }
+
+      if (!profile.approved) {
+        alert("管理者の承認後に利用可能です");
+        appArea.classList.add("locked");
+        return;
+      }
+
+      // 承認済みのみ解放
+      appArea.classList.remove("locked");
+
+      document.getElementById("farmer-actions")
+        .style.display = "block";
+
+      document.getElementById("register-area")
+        .style.display = "block";
+    }
+
+    // ===============================
+    // 認証状態の変化を監視（UI更新のみ）
+    // ===============================
+    supabase.auth.onAuthStateChange((event, session) => {
+
+      console.log("認証イベント:", event);
+
+      if (!session) {
+        currentUser = null;
+        appArea.classList.add("locked");
+        logoutBtn.classList.add("hidden");
+        loginStatus.textContent = "ログアウト状態";
+      }
+
+    });
+
+    /* =============================
+       地図初期化
+       ============================= */
+    let map, marker;
+
+    function initMap(lat, lng) {
+
+      map = L.map("map", {
+
+        // スマホ1本指スクロールで地図を動かさない
+        dragging: false,
+
+        // ホイールズーム無効
+        scrollWheelZoom: false,
+
+        // タップズーム暴発防止
+        tap: false
+
+      }).setView([lat, lng], 15);
+
+      // 地図をタップした時だけ操作可能にする
+      map.on("focus", function () {
+        map.dragging.enable();
+      });
+
+      // 地図外をタップしたら再びロック
+      document.addEventListener("touchstart", function (e) {
+
+        const mapElement = document.getElementById("map");
+
+        // 地図外タップ
+        if (!mapElement.contains(e.target)) {
+          map.dragging.disable();
+        }
+
+      });
+
+      L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ).addTo(map);
+
+      marker = L.marker([lat, lng], { draggable: true })
+        .addTo(map);
+
+      marker.on("dragend", () => {
+        const pos = marker.getLatLng();
+        document.getElementById("lat").value =
+          pos.lat.toFixed(6);
+        document.getElementById("lng").value =
+          pos.lng.toFixed(6);
+      });
+    }
+
+    initMap(34.455339, 131.764489);
+
+    /* =============================
+       現在地取得
+       ============================= */
+    locationBtn.addEventListener("click", () => {
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          document.getElementById("lat").value =
+            lat.toFixed(6);
+
+          document.getElementById("lng").value =
+            lng.toFixed(6);
+
+          map.setView([lat, lng], 17);
+          marker.setLatLng([lat, lng]);
+        }
+      );
+    });
+
+    /* =============================
+       画像プレビュー
+       ============================= */
+    document.getElementById("photoInput").addEventListener("change", function (event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = function () {
+        const preview =
+          document.getElementById("photoPreview");
+
+        preview.innerHTML = "";
+
+        const img = document.createElement("img");
+        img.src = reader.result;
+        img.style.maxWidth = "100%";
+        img.style.maxHeight = "100%";
+
+        preview.appendChild(img);
+      };
+
+      reader.readAsDataURL(file);
+    });
+
+    /* =============================
+       画像圧縮関数
+       ============================= */
+    async function compressImage(file) {
+      const img = new Image();
+      const reader = new FileReader();
+
+      return new Promise((resolve) => {
+        reader.onload = (e) => {
+          img.src = e.target.result;
+        };
+
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          const MAX_WIDTH = 1200;
+
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height = height * (MAX_WIDTH / width);
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob);
+            },
+            "image/jpeg",
+            0.7   // 品質
+          );
+        };
+
+        reader.readAsDataURL(file);
+      });
+    }
+
+    /* =============================
+       野菜登録
+       ============================= */
+    registerBtn.addEventListener("click", async () => {
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("ログインしてください");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("approved")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile.approved) {
+        return;
+      }
+
+      const farmName =
+        document.getElementById("farm_name").value;
+
+      const vegName =
+        document.getElementById("vegetable_name").value;
+
+      const lat =
+        document.getElementById("lat").value;
+      const lng =
+        document.getElementById("lng").value;
+
+      const price =
+        document.getElementById("price").value;
+
+      const unit =
+        document.getElementById("unit").value;
+
+      // ↓ 追加
+      const comment =
+        document.getElementById("comment").value;
+
+      const file =
+        document.getElementById("photoInput").files[0];
+
+      if (!farmName || !vegName || !price || !file) {
+        alert("必須項目が入力されていません");
+        return;
+      }
+
+      const compressedBlob =
+        await compressImage(file);
+      console.log("元サイズ:", file.size / 1024, "KB");
+      console.log("圧縮後:", compressedBlob.size / 1024, "KB");
+
+      const filePath =
+        `vegetables/${Date.now()}.jpg`;
+
+      // ===============================
+      // 画像アップロード
+      // ===============================
+      const { data: uploadData, error: uploadError } =
+        await supabase
+          .storage
+          .from("images")
+          .upload(filePath, compressedBlob, {
+            contentType: "image/jpeg"
+          });
+
+      if (uploadError) {
+        console.error("画像アップロード失敗:", uploadError);
+        alert(uploadError.message);
+        return;
+      }
+
+      const { data: urlData } =
+        supabase.storage
+          .from("images")
+          .getPublicUrl(filePath);
+
+      // ===============================
+      // 野菜データ登録
+      // ===============================
+      const { data: insertData, error: insertError } =
+        await supabase
+          .from("vegetables")
+          .insert([
+            {
+              farmer_id: currentUser.id,
+              farm_name: farmName,
+              latitude: parseFloat(lat),
+              longitude: parseFloat(lng),
+              vegetable_name: vegName,
+              price: parseInt(price),
+              unit: unit,
+
+              // ↓ 追加
+              comment: comment,
+
+              image_url: urlData.publicUrl,
+              is_available: true
+            }
+          ]);
+
+      if (insertError) {
+        console.error("登録失敗:", insertError);
+        alert(insertError.message);
+        return;
+      }
+
+      alert("登録完了");
+      location.reload();
+    });
+
+    /* =============================
+   PWA Service Worker登録
+============================= */
+    if ("serviceWorker" in navigator) {
+
+      window.addEventListener("load", async () => {
+
+        try {
+
+          await navigator.serviceWorker.register(
+            "./service-worker.js"
+          );
+
+          console.log("Service Worker登録成功");
+
+        } catch (err) {
+
+          console.error(
+            "Service Worker登録失敗",
+            err
+          );
+
+        }
+
+      });
+
+    }
+
+    /* =============================
+       ユーザー再表示
+    ============================= */
+    window.addEventListener("DOMContentLoaded", async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        document.getElementById("userName").textContent =
+          user.email;
+      }
+
+    });
+
+  </script>
+
+</body>
+
+</html>

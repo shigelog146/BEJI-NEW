@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>販売中の野菜一覧</title>
+
+    <!-- ================================
+       CSS（見た目のデザイン設定）
+       ================================ -->
+    <style>
+        /* ページ全体の基本設定 */
+        body {
+            font-family: sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+            padding: 12px;
+            font-size: 20px;
+        }
+
+        /* 見出し */
+        h1 {
+            font-size: 26px;
+            margin-bottom: 16px;
+        }
+
+        /* 商品カード */
+        .item {
+            background: white;
+            padding: 16px;
+            margin-bottom: 18px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* 野菜画像の表示設定 */
+        .item img {
+            width: 100%;
+            height: 180px;
+            /* 高さ固定 */
+            object-fit: contain;
+            /* 画像を切らずに表示 */
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        /* 野菜名 */
+        .name {
+            font-weight: bold;
+            font-size: 22px;
+            margin-bottom: 6px;
+        }
+
+        /* 価格表示 */
+        .price {
+            color: #444;
+            margin: 4px 0;
+        }
+
+        /* ボタン共通デザイン */
+        button {
+            width: 100%;
+            font-size: 20px;
+            padding: 14px;
+            margin-top: 10px;
+            background: #752d2a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+        }
+
+        /* 編集用input */
+        .edit-input,
+        .edit-textarea {
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 18px;
+            padding: 10px;
+            margin-top: 6px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        /* コメント欄 */
+        .edit-textarea {
+            min-height: 90px;
+            resize: vertical;
+        }
+
+        /* 保存ボタン */
+        .save-btn {
+            background: #2f7d32;
+        }
+
+        /* スマホ小画面対応 */
+        @media (max-width: 480px) {
+            body {
+                font-size: 22px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .item img {
+                height: 260px;
+            }
+
+            button {
+                font-size: 22px;
+                padding: 16px;
+            }
+        }
+
+        /* 一覧を2列グリッドに */
+        #list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
+
+        @media (max-width: 480px) {
+            #list {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .upload-time {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            margin-bottom: 10px;
+        }
+    </style>
+
+    <!-- PWA設定 -->
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="theme-color" content="#1a571a">
+
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+</head>
+
+<body>
+
+    <!-- ================================
+       index.htmlへ戻るボタン
+       ================================ -->
+    <button onclick="location.href='index.html'" style="margin-bottom:12px; background:#2d5a75;">
+        ← 登録画面へ戻る
+    </button>
+
+    <!-- ページタイトル -->
+    <h1>販売中の野菜</h1>
+
+    <!-- 野菜一覧表示エリア -->
+    <div id="list"></div>
+
+
+    <!-- ================================
+       JavaScript（Supabase連携）
+       ================================ -->
+    <script type="module">
+
+        /* Supabaseライブラリ読み込み */
+        import { createClient }
+            from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+        /* Supabase接続設定 */
+        const supabase = createClient(
+            "https://zyvpzobykvuscxuhsrad.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5dnB6b2J5a3Z1c2N4dWhzcmFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTE0NTAsImV4cCI6MjA4NTM2NzQ1MH0.Z2cKv3VSlk3iibQl7ldwcff9WF5cBHTZkcrdvxA2Bbk"
+        );
+
+        let currentUser = null;
+
+
+        /* =====================================
+           自分の野菜一覧を読み込む関数
+           ===================================== */
+        async function loadItems() {
+
+            // セッション復元
+            await supabase.auth.getSession();
+
+            // ① ログインユーザー取得
+            const { data: { user }, error: userError } =
+                await supabase.auth.getUser();
+
+            // ログインしていない場合
+            if (userError || !user) {
+                alert("ログインしてください");
+                return;
+            }
+
+            // ② 自分の farmer_id の野菜だけ取得
+            const { data, error } = await supabase
+                .from("vegetables")
+                .select("*")
+                .eq("farmer_id", user.id)     // ログイン中ユーザーのID
+                .eq("is_available", true)     // 販売中のみ
+                .order("created_at", { ascending: false }); // 新しい順
+
+            if (error) {
+                alert("読み込み失敗");
+                console.error(error);
+                return;
+            }
+
+            // 一覧表示エリア取得
+            const list = document.getElementById("list");
+            list.innerHTML = "";
+
+            // データが無い場合
+            if (data.length === 0) {
+                list.innerHTML = "<p>現在販売中の野菜はありません</p>";
+                return;
+            }
+
+            // データを画面に表示
+            data.forEach(item => {
+
+                const div = document.createElement("div");
+                div.className = "item";
+
+                div.innerHTML = `
+${item.image_url ? `<img src="${item.image_url}" id="img_${item.id}">` : ""}
+
+<label>写真を変更</label>
+
+<input
+  type="file"
+  accept="image/*"
+  capture="environment"
+  id="file_${item.id}"
+  class="edit-input"
+  onchange="updateImage('${item.id}')"
+/>
+
+  <label>野菜名</label>
+  <input
+    class="edit-input"
+    id="name_${item.id}"
+    value="${item.vegetable_name || ""}"
+  >
+
+  <label>価格</label>
+  <input
+    class="edit-input"
+    type="number"
+    id="price_${item.id}"
+    value="${item.price || 0}"
+  >
+
+  <label>コメント</label>
+  <textarea
+    class="edit-textarea"
+    id="comment_${item.id}"
+  >${item.comment || ""}</textarea>
+
+<div class="price">
+  ${item.unit || ""}
+</div>
+
+<!-- 投稿日時 -->
+<div class="upload-time">
+  投稿日：
+  ${new Date(item.created_at).toLocaleString('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}
+</div>
+
+  <button
+    class="save-btn"
+    onclick="updateItem('${item.id}')"
+  >
+    保存する
+  </button>
+
+  <button onclick="stopSale('${item.id}')">
+    販売を中止する
+  </button>
+`;
+
+                list.appendChild(div);
+            });
+        }
+
+
+        /* =====================================
+           販売中止処理
+           ===================================== */
+        async function stopSale(id) {
+
+            if (!confirm("この野菜を販売中止にしますか？")) return;
+
+            const { error } = await supabase
+                .from("vegetables")
+                .update({ is_available: false })
+                .eq("id", id);
+
+            if (error) {
+                alert("更新失敗");
+                return;
+            }
+
+            loadItems(); // 再読み込み
+        }
+        /* =====================================
+           野菜情報更新
+           ===================================== */
+        async function updateItem(id) {
+
+            const vegetable_name =
+                document.getElementById(`name_${id}`)
+                    .value
+                    .trim();
+
+            const price =
+                document.getElementById(`price_${id}`)
+                    .value;
+
+            // ↓ 追加
+            const priceNumber = Number(price);
+
+            const comment =
+                document.getElementById(`comment_${id}`)
+                    .value
+                    .trim();
+
+            // 入力チェック
+            if (!vegetable_name) {
+                alert("野菜名を入力してください");
+                return;
+            }
+
+            if (isNaN(priceNumber) || priceNumber < 0) {
+                alert("価格を正しく入力してください");
+                return;
+            }
+
+            // UPDATE実行
+            const { error } = await supabase
+                .from("vegetables")
+                .update({
+                    vegetable_name: vegetable_name,
+                    price: priceNumber,
+                    comment: comment
+                })
+                .eq("id", id);
+
+            if (error) {
+                console.error(error);
+                alert("更新失敗");
+                return;
+            }
+
+            alert("保存しました");
+        }
+
+        /* =====================================
+   画像更新
+===================================== */
+        async function updateImage(id) {
+
+            const fileInput =
+                document.getElementById(`file_${id}`);
+
+            const file = fileInput.files[0];
+
+            fileInput.disabled = true;
+            fileInput.style.opacity = "0.5";
+
+            if (!file) {
+                alert("画像を選択してください");
+                return;
+            }
+
+            // ログインユーザー取得
+            const { data: { user } } =
+                await supabase.auth.getUser();
+
+            if (!user) {
+                alert("ログインしてください");
+                return;
+            }
+
+            // ファイル名作成
+            const filePath =
+                `vegetables/${user.id}_${Date.now()}_${file.name}`;
+
+            // Storageへアップロード
+            const { error: uploadError } =
+                await supabase.storage
+                    .from("images")
+                    .upload(filePath, file);
+
+            if (uploadError) {
+                console.error(uploadError);
+                alert("画像アップロード失敗");
+                return;
+            }
+
+            // 公開URL取得
+            const { data: urlData } =
+                supabase.storage
+                    .from("images")
+                    .getPublicUrl(filePath);
+
+            const imageUrl = urlData.publicUrl;
+
+            // DB更新
+            const { error: updateError } =
+                await supabase
+                    .from("vegetables")
+                    .update({
+                        image_url: imageUrl
+                    })
+                    .eq("id", id);
+
+            if (updateError) {
+                console.error(updateError);
+                alert("DB更新失敗");
+                return;
+            }
+
+            // 画像即反映
+            const img =
+                document.getElementById(`img_${id}`);
+
+            if (img) {
+                img.src = imageUrl;
+            }
+
+            fileInput.disabled = false;
+            fileInput.style.opacity = "1";
+
+            alert("写真を更新しました");
+        }
+        /* HTML側から呼べるようにする */
+        window.stopSale = stopSale;
+        window.updateItem = updateItem;
+        window.updateImage = updateImage;
+
+        /* HTML側から呼べるようにする */
+        window.stopSale = stopSale;
+        window.updateItem = updateItem;
+        window.updateImage = updateImage;
+
+        /* =============================
+           PWA Service Worker登録
+        ============================= */
+        if ("serviceWorker" in navigator) {
+
+            window.addEventListener("load", async () => {
+
+                try {
+
+                    await navigator.serviceWorker.register(
+                        "./service-worker.js"
+                    );
+
+                    console.log("Service Worker登録成功");
+
+                } catch (err) {
+
+                    console.error(
+                        "Service Worker登録失敗",
+                        err
+                    );
+
+                }
+
+            });
+
+        }
+
+        /* ページ読み込み時に一覧取得 */
+        loadItems();
+
+    </script>
+
+    </script>
+
+</body>
+
+</html>
