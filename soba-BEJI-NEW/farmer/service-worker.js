@@ -1,4 +1,19 @@
-const CACHE_NAME = "vegetable-app-v2";
+const CACHE_NAME = "vegetable-app-v4";
+
+// ===============================
+// 古いキャッシュ削除
+// ===============================
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key)),
+      );
+    }),
+  );
+});
 
 const urlsToCache = ["./", "./index.html", "./list.html"];
 
