@@ -1,11 +1,16 @@
 {
   "name": "野菜販売システム",
   "short_name": "野菜販売",
-  "start_url": "/",
+
+  "start_url": "/farmer/",
+  "scope": "/farmer/",
+  "id": "/farmer/",
+
   "display": "standalone",
   "background_color": "#e4e3e3",
   "theme_color": "#1a571a",
   "orientation": "portrait",
+
   "icons": [
     {
       "src": "icon-192.png",
