@@ -1,4 +1,4 @@
-const CACHE_NAME = "buyer-cache-v3";
+const CACHE_NAME = "buyer-cache-v4";
 
 const urlsToCache = [
   "./",

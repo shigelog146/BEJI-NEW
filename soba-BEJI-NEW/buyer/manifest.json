@@ -1,12 +1,16 @@
 {
   "name": "まちごと八百屋",
   "short_name": "八百屋",
-  "start_url": "./",
-  "scope": "./",
+
+  "start_url": "/BEJI-NEW/soba-BEJI-NEW/buyer/",
+
+  "scope": "/BEJI-NEW/soba-BEJI-NEW/buyer/",
+
   "display": "standalone",
   "background_color": "#e1dbdb",
   "theme_color": "#007700",
   "orientation": "portrait",
+
   "icons": [
     {
       "src": "icon/icon-192.png",
