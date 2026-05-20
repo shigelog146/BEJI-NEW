@@ -1,7 +1,7 @@
 {
   "name": "野菜販売システム",
   "short_name": "野菜販売",
-  "start_url": "./index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#e4e3e3",
   "theme_color": "#1a571a",

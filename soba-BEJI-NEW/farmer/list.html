@@ -467,9 +467,9 @@ ${item.image_url ? `<img src="${item.image_url}" id="img_${item.id}">` : ""}
 
                 try {
 
-                    await navigator.serviceWorker.register(
-                        "./service-worker.js"
-                    );
+                  await navigator.serviceWorker.register(
+                  "/service-worker.js"
+                  );
 
                     console.log("Service Worker登録成功");
 
