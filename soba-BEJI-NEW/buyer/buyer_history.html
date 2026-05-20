@@ -156,7 +156,7 @@
             /* 未ログインなら購入画面へ戻す */
             if (!user) {
                 alert("ログインしてください");
-                location.href = "buyer.html";
+                location.href = "./";
                 return;
             }
 
@@ -165,7 +165,7 @@
 
             /* 戻るボタンのクリック処理 */
             document.getElementById("backBtn").onclick =
-                () => location.href = "buyer.html";
+                () => location.href = "./";
 
             /* 購入履歴読み込み */
             loadHistory();

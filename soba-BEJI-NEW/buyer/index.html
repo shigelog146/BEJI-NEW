@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>野菜購入（事業者用）</title>
+
+    <!-- =========================
+   PWA設定
+========================= -->
+
+    <!-- manifest読込 -->
+    <link rel="manifest" href="./manifest.json">
+
+    <!-- iPhoneホーム画面アイコン -->
+    <link rel="apple-touch-icon" href="icon/icon-192.png">
+
+    <!-- アプリテーマ色 -->
+    <meta name="theme-color" content="#007700">
+
+    <!-- =========================
+       スタイル定義
+  ========================== -->
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: sans-serif;
+            font-size: 20px;
+            padding: 14px;
+            background: #e1dbdb;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            font-size: 18px;
+            padding: 8px;
+            margin: 6px 0 12px;
+
+        }
+
+        /* 野菜カード */
+        .card {
+            background: white;
+            border-radius: 2px;
+            padding: 12px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 420px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card img {
+            width: 100%;
+            height: 180px;
+            /* 高さ固定 */
+            object-fit: cover;
+            /* 切り抜き表示 */
+            border-radius: 2px;
+        }
+
+        .name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+
+        .price {
+            color: green;
+            font-size: 18px;
+            margin-top: 4px;
+        }
+
+        .comment {
+            margin-top: 6px;
+            color: #555;
+        }
+
+        button {
+            margin-top: 10px;
+            width: 100%;
+            font-size: 18px;
+            padding: 10px;
+            background: #007700;
+            color: white;
+            border: none;
+            border-radius: 2px;
+        }
+
+        button:active {
+            transform: translateY(2px);
+        }
+
+        #historyBtn {
+            background: #006636;
+            margin-bottom: 18px;
+        }
+
+        #installBtn {
+            background: #ff8800;
+            font-weight: bold;
+            position: sticky;
+            bottom: 10px;
+            z-index: 999;
+        }
+
+        .card button {
+            margin-top: 8px;
+        }
+
+        .card button:first-of-type {
+            background: #5479b1;
+        }
+
+        .card button:last-of-type {
+            margin-top: auto;
+            /* 下に押し付ける */
+        }
+
+        img {
+            max-width: min(10cm, 100%);
+            height: auto;
+        }
+
+        /* カード一覧レイアウト */
+        #list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                font-size: 22px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .name {
+                font-size: 24px;
+            }
+
+            .price {
+                font-size: 20px;
+            }
+
+            input {
+                font-size: 20px;
+                padding: 12px;
+            }
+
+            button {
+                font-size: 22px;
+                padding: 14px;
+            }
+
+            .card img {
+                height: 220px;
+            }
+        }
+
+        .upload-time {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+    </style>
+
+    <!-- アイコンライブラリ -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+
+    <!-- =========================
+       ログインエリア
+  ========================== -->
+    <div id="authArea">
+        <h3 id="authTitle"><img src="icon/icons8-beet-50.png" class="heading-icon">まちごと八百屋</h3>
+
+        <input id="email" type="email" placeholder="メールアドレス">
+
+        <div style="
+  position:relative;
+  width:100%;
+  max-width:500px;
+">
+
+            <input id="password" type="password" placeholder="パスワード" style="padding-right:60px;">
+
+            <button type="button" id="togglePassword" style="
+      position:absolute;
+      right:10px;
+      top:50%;
+      transform:translateY(-50%);
+      background:none;
+      border:none;
+      color:#555;
+      font-size:22px;
+      width:auto;
+      padding:0;
+      margin:0;
+      cursor:pointer;
+    ">
+                👁
+            </button>
+
+        </div>
+
+        <button id="loginBtn">ログイン</button>
+        <button id="signupBtn">新規登録</button>
+
+        <!-- ログイン後表示 -->
+        <div id="loginStatus" style="display:none;">
+            <div id="loginUser"></div>
+            <button id="logoutBtn" style="background:#aa0000;">ログアウト</button>
+        </div>
+    </div>
+
+    <!-- =========================
+       タイトル
+  ========================== -->
+    <h1>本日の野菜（事業者用）</h1>
+
+    <!-- 購入者名入力 -->
+    <label>購入者名（事業者名）</label>
+    <input id="buyer_name" placeholder="例：山田青果店">
+
+    <!-- 購入履歴ページへ移動ボタン -->
+    <button id="historyBtn">購入履歴を見る</button>
+
+    <!-- =========================
+   PWAインストールボタン
+========================= -->
+    <button id="installBtn" style="display:none;">
+        アプリをインストール
+    </button>
+
+    <!-- 野菜一覧表示エリア -->
+    <div id="list"></div>
+
+    <!-- =========================
+       JavaScript開始
+  ========================== -->
+    <script type="module">
+
+        /* =========================
+           Supabase接続
+        ========================== */
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+        const supabase = createClient(
+            "https://zyvpzobykvuscxuhsrad.supabase.co",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp5dnB6b2J5a3Z1c2N4dWhzcmFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3OTE0NTAsImV4cCI6MjA4NTM2NzQ1MH0.Z2cKv3VSlk3iibQl7ldwcff9WF5cBHTZkcrdvxA2Bbk"
+        );
+
+        /* =========================
+           ログイン状態確認
+        ========================== */
+        let currentUser = null;
+
+        // セッションを確実に復元
+        // ======================================
+        // ページ読み込み時：ログイン＋role確認
+        // ======================================
+        document.addEventListener("DOMContentLoaded", async () => {
+
+            const { data: sessionData } = await supabase.auth.getSession();
+
+            if (!sessionData.session) {
+                return;
+            }
+
+            const user = sessionData.session.user;
+
+            // profiles取得
+            const { data: profile, error } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", user.id)
+                .single();
+
+            if (error || !profile) {
+                console.error("profile取得失敗");
+                return;
+            }
+
+            // roleチェック
+            if (profile.role === "farmer") {
+                alert("このアカウントは農家用です。農家ページからログインしてください。");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            if (profile.role !== "buyer") {
+                alert("購入者アカウントのみ利用できます。");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            // 承認チェック
+            if (!profile.approved) {
+                alert("承認待ちです。管理者の承認をお待ちください。");
+                return;
+            }
+
+            setLogin(user);
+        });
+
+        /* =========================
+           野菜一覧取得
+        ========================== */
+        async function loadVegetables() {
+
+            const { data, error } = await supabase
+                .from("vegetables")
+                .select("*")
+                .eq("is_available", true)
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                alert("野菜の取得に失敗しました");
+                return;
+            }
+
+            const list = document.getElementById("list");
+            list.innerHTML = "";
+
+            data.forEach(v => {
+
+                const div = document.createElement("div");
+                div.className = "card";
+
+                const disabled = currentUser ? "" : "disabled";
+                const label = currentUser ? "予約する" : "ログインしてください";
+                const opacity = currentUser ? "1" : "0.5";
+
+                const mapUrl = `https://www.google.com/maps?q=${v.latitude},${v.longitude}`;
+
+                div.innerHTML = `
+          <img src="${v.image_url}">
+          <div class="name">${v.vegetable_name}</div>
+          <div>${v.farm_name}</div>
+
+          <button onclick="window.open('${mapUrl}', '_blank')">
+            <i data-lucide="carrot"></i> 畑の場所
+          </button>
+
+<div class="price">${v.price}円 / ${v.unit}</div>
+
+<!-- 投稿日時 -->
+<div class="upload-time">
+  投稿日：
+  ${new Date(v.created_at).toLocaleString('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}
+</div>
+
+<div class="comment">${v.comment || ""}</div>
+
+          <label>購入数量</label>
+          <input type="number" min="1" value="1" id="qty_${v.id}">
+
+          <button
+            ${disabled}
+            onclick="purchase('${v.id}', '${v.farmer_id}')"
+            style="opacity:${opacity}; cursor:${currentUser ? 'pointer' : 'not-allowed'};"
+          >
+
+            ${label}
+          </button>
+        `;
+
+                list.appendChild(div);
+            });
+
+            lucide.createIcons();
+        }
+
+        /* =========================
+           購入処理
+        ========================== */
+        async function purchase(vegetableId, farmerId) {
+
+            const { data: sessionData } = await supabase.auth.getSession();
+
+            if (!sessionData.session) {
+                alert("ログインしてください");
+                return;
+            }
+            const user = sessionData.session.user;
+
+            const { data: profile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", user.id)
+                .single();
+
+            if (!profile || profile.role !== "buyer") {
+                alert("購入者のみ利用できます");
+                return;
+            }
+
+            if (!profile.approved) {
+                alert("承認待ちです");
+                return;
+            }
+
+            const buyerName = document.getElementById("buyer_name").value;
+            const qty = document.getElementById(`qty_${vegetableId}`).value;
+
+            if (!buyerName) {
+                alert("購入者名（事業者名）を入力してください");
+                return;
+            }
+
+            if (!qty || qty <= 0) {
+                alert("数量を正しく入力してください");
+                return;
+            }
+
+            /* purchasesテーブルへ保存 */
+            const { error } = await supabase
+                .from("purchases")
+                .insert({
+                    vegetable_id: vegetableId,
+                    buyer_id: user.id,
+                    buyer_name: buyerName,
+                    farmer_id: farmerId,
+                    quantity: qty
+                });
+
+            if (error) {
+                console.error(error);
+                alert("購入記録に失敗しました");
+                return;
+            }
+
+            /* 売切れ更新 */
+            await supabase
+                .from("vegetables")
+                .update({ is_available: false })
+                .eq("id", vegetableId);
+
+            alert("購入を記録しました");
+            loadVegetables();
+        }
+
+        window.purchase = purchase;
+
+        loadVegetables();
+
+        /* =========================
+           履歴ページへ移動
+        ========================== */
+        document.getElementById("historyBtn").onclick = () => {
+            window.location.href = "buyer_history.html";
+        };
+
+        /* =========================
+           ログイン処理
+        ========================== */
+        async function login() {
+
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value.trim();
+
+            if (!email || !password) {
+                alert("メールアドレスとパスワードを入力してください");
+                return;
+            }
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) {
+                alert("ログイン失敗：" + error.message);
+                return;
+            }
+
+            const user = data.user;
+
+            // 🔵 profiles取得
+            const { data: profile, error: profileError } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", user.id)
+                .single();
+
+            if (profileError || !profile) {
+                alert("プロフィールが存在しません");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            // 🔵 role確認
+            if (profile.role === "farmer") {
+                alert("このアカウントは農家用です。農家ページからログインしてください。");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            if (profile.role !== "buyer") {
+                alert("購入者アカウントのみ利用できます。");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            // 🔵 承認確認
+            if (!profile.approved) {
+                alert("承認待ちです。管理者の承認をお待ちください。");
+                await supabase.auth.signOut();
+                return;
+            }
+
+            // ここまで通ったら初めてログイン確定
+            setLogin(user);
+            alert("ログイン成功");
+        }
+
+        /* =========================
+           新規登録
+        ========================== */
+        async function signup() {
+
+            const email = document.getElementById("email").value.trim();
+            const password = document.getElementById("password").value.trim();
+
+            if (!email || !password) {
+                alert("メールアドレスとパスワードを入力してください");
+                return;
+            }
+
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password
+            });
+
+            if (error) {
+                alert("登録失敗：" + error.message);
+                return;
+            }
+
+            if (data.user) {
+                const { error: profileError } = await supabase
+                    .from("profiles")
+                    .insert({
+                        id: data.user.id,
+                        role: "buyer",
+                        approved: false,
+                        name: "",
+                        address: "",
+                        phone: ""
+                    });
+
+                if (profileError) {
+                    console.error("profile作成エラー:", profileError);
+                    alert("プロフィール作成失敗：" + profileError.message);
+                    return;
+                }
+            }
+
+            alert("登録完了。管理者承認後に利用できます。");
+        }
+
+        /* =========================
+           ログアウト
+        ========================== */
+        async function logout() {
+            await supabase.auth.signOut();
+            location.reload();
+        }
+
+        /* =========================
+           ログイン状態UI切替
+        ========================== */
+        function setLogin(user) {
+
+            currentUser = user;
+
+            document.getElementById("loginStatus").style.display = "block";
+            document.getElementById("loginUser").textContent =
+                `ログイン中：${user.email}`;
+
+            document.getElementById("email").style.display = "none";
+            document.getElementById("password").style.display = "none";
+
+            document.getElementById("togglePassword")
+                .style.display = "none";
+            document.getElementById("loginBtn").style.display = "none";
+            document.getElementById("signupBtn").style.display = "none";
+
+            const buyerInput = document.getElementById("buyer_name");
+            if (buyerInput) {
+                buyerInput.value = user.email;
+                // readOnly は付けない（編集可能にするため）
+            }
+
+            loadVegetables();
+        }
+
+        /* ボタンイベント紐付け */
+        /* =========================
+           パスワード表示切替
+        ========================= */
+        const passwordInput =
+            document.getElementById("password");
+
+        const togglePassword =
+            document.getElementById("togglePassword");
+
+        togglePassword.addEventListener("click", () => {
+
+            if (passwordInput.type === "password") {
+
+                passwordInput.type = "text";
+                togglePassword.textContent = "🙈";
+
+            } else {
+
+                passwordInput.type = "password";
+                togglePassword.textContent = "👁";
+
+            }
+
+        });
+
+        /* ボタンイベント紐付け */
+        document.getElementById("loginBtn").onclick = login;
+        document.getElementById("signupBtn").onclick = signup;
+        document.getElementById("logoutBtn").onclick = logout;
+
+        /* ========================================
+           PWA インストール処理
+        ======================================== */
+
+        let deferredPrompt = null;
+
+        const installBtn =
+            document.getElementById("installBtn");
+
+        /* インストール可能になった時 */
+        window.addEventListener(
+            "beforeinstallprompt",
+            (e) => {
+
+                // 自動表示を止める
+                e.preventDefault();
+
+                // 後で使うため保存
+                deferredPrompt = e;
+
+                // ボタン表示
+                installBtn.style.display = "block";
+            }
+        );
+
+        /* ボタンクリック */
+        installBtn.addEventListener("click", async () => {
+
+            if (!deferredPrompt) {
+                return;
+            }
+
+            // インストール画面表示
+            deferredPrompt.prompt();
+
+            // ユーザー選択待ち
+            const { outcome } =
+                await deferredPrompt.userChoice;
+
+            console.log("インストール結果:", outcome);
+
+            // ボタン非表示
+            installBtn.style.display = "none";
+
+            deferredPrompt = null;
+        });
+
+        /* インストール済み */
+        window.addEventListener(
+            "appinstalled",
+            () => {
+
+                console.log("PWAインストール完了");
+
+                installBtn.style.display = "none";
+            }
+        );
+
+        // ========================================
+        // Service Worker登録
+        // ========================================
+        if ("serviceWorker" in navigator) {
+
+            // ページ読込完了後
+            window.addEventListener("load", () => {
+
+                navigator.serviceWorker
+
+                    // service-worker.js登録
+                    .register("./service-worker.js")
+
+                    .then(() => {
+
+                        console.log("Service Worker 登録成功");
+
+                    })
+
+                    .catch(err => {
+
+                        console.log("Service Worker 登録失敗", err);
+
+                    });
+
+            });
+
+        }
+
+    </script>
+
+</body>
+
+</html>

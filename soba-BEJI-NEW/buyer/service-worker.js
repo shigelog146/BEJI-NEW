@@ -1,8 +1,8 @@
-const CACHE_NAME = "buyer-cache-v1";
+const CACHE_NAME = "buyer-cache-v2";
 
 const urlsToCache = [
   "./",
-  "./buyer.html",
+  "./index.html",
   "./buyer_history.html",
   "./manifest.json",
   "./icon/icon-192.png",

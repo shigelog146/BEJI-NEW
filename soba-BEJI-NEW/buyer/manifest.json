@@ -1,7 +1,8 @@
 {
   "name": "まちごと八百屋",
   "short_name": "八百屋",
-  "start_url": "./buyer.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#e1dbdb",
   "theme_color": "#007700",
